@@ -1,68 +1,73 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, Button, FlatList, Linking } from 'react-native';
-import {
-  SafeAreaView,
-  SafeAreaProvider,
-  SafeAreaInsetsContext,
-  useSafeAreaInsets,
-  initialWindowMetrics,
-} from 'react-native-safe-area-context';
+import { StyleSheet, Text, View, Button, FlatList, Linking, TouchableOpacity } from 'react-native';
+import { Accelerometer } from 'expo-sensors';
+import { SafeAreaView } from 'react-native-safe-area-context';
 // expo requires that we install these via the command line
-import * as Permissions from 'expo-permissions';
-import * as Contacts from 'expo-contacts';
 
 export default function App() {
+  const [data, setData] = useState({
+    x: 0,
+    y: 0,
+    z: 0,
+  });
+  const [subscription, setSubscription] = useState(null);
 
-  const [contacts, setContacts] = useState([]);
-  const [permissions, setPermissions] = useState(false);
+  const _slow = () => {
+    Accelerometer.setUpdateInterval(1000);
+  };
 
-  const getPermissions = async () => {
-    const { status } = await Permissions.askAsync(Permissions.CONTACTS);
-    setPermissions(true);
-  }
+  const _fast = () => {
+    Accelerometer.setUpdateInterval(16);
+  };
 
-  const showContacts = async () => {
-    const contactList = await Contacts.getContactsAsync();
-    console.log(contactList);
-    setContacts(contactList.data);
-  }
+  const _subscribe = () => {
+    setSubscription(
+      Accelerometer.addListener(accelerometerData => {
+        setData(accelerometerData);
+      })
+    );
+  };
 
-  const call = (contact) => {
-    let phoneNumber = contact.phoneNumbers[0].number.replace(/[\(\)\-\s+]/g, '');
-    let link = `tel:${phoneNumber}`;
-    Linking.canOpenURL(link)
-      .then(() => Linking.openURL(link));
-  }
+  const _unsubscribe = () => {
+    subscription && subscription.remove();
+    setSubscription(null);
+  };
 
   useEffect(() => {
-    // if (permissions) {
-    //   showContacts();
-    // } else {
-    getPermissions();
-    // }
+    _subscribe();
+    return () => _unsubscribe();
   }, []);
 
+  const { x, y, z } = data;
   return (
     <>
       <SafeAreaView style={styles.safeArea} />
-      <SafeAreaView>
-        <Button
-          onPress={showContacts}
-          title="Press to see contacts"
-        />
-        <SafeAreaView>
-          <Text>Contacts</Text>
-          <FlatList
-            data={contacts}
-            keyExtractor={item => item.id}
-            renderItem={({ item }) => <Button title={item.name} onPress={() => call(item)} />}
-          />
+      <SafeAreaView style={styles.container}>
+        <Text style={styles.text}>Accelerometer: (in Gs where 1 G = 9.81 m s^-2)</Text>
+        <Text style={styles.text}>
+          x: {round(x)} y: {round(y)} z: {round(z)}
+        </Text>
+        <SafeAreaView style={styles.buttonContainer}>
+          <TouchableOpacity onPress={subscription ? _unsubscribe : _subscribe} style={styles.button}>
+            <Text>{subscription ? 'On' : 'Off'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={_slow} style={[styles.button, styles.middleButton]}>
+            <Text>Slow</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={_fast} style={styles.button}>
+            <Text>Fast</Text>
+          </TouchableOpacity>
         </SafeAreaView>
-        {/* <Text style={styles.text}>New Stuff!</Text>
-        <Text style={styles.largerText}>More text</Text> */}
       </SafeAreaView>
     </>
   );
+}
+
+function round(n) {
+  if (!n) {
+    return 0;
+  }
+  return Math.floor(n * 100) / 100;
 }
 
 const styles = StyleSheet.create({
@@ -71,20 +76,28 @@ const styles = StyleSheet.create({
     backgroundColor: '#FF5236'
   },
   container: {
-    flex: 1, // cocktail recipe, 
-    // paddingTop: 50,
-    borderWidth: 5,
-    borderColor: "red",
-    backgroundColor: 'bisque',
-    alignItems: 'center',
+    flex: 1,
     justifyContent: 'center',
+    paddingHorizontal: 10,
   },
   text: {
-    flex: 2,
-    backgroundColor: "pink",
+    textAlign: 'center',
   },
-  largerText: {
-    flex: 3,
-    backgroundColor: 'blue'
-  }
+  buttonContainer: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    marginTop: 15,
+  },
+  button: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#eee',
+    padding: 10,
+  },
+  middleButton: {
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: '#ccc',
+  },
 });
